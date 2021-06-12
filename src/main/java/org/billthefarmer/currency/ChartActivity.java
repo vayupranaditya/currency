@@ -40,7 +40,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.mikephil.charting.charts.LineChart;
-import com.github.mikephil.charting.components.AxisBase;
 import com.github.mikephil.charting.components.Description;
 import com.github.mikephil.charting.components.Legend;
 import com.github.mikephil.charting.components.XAxis;
@@ -81,28 +80,28 @@ public class ChartActivity extends Activity
     public static final int YEARS = 1825;
     public static final int MAX = Integer.MAX_VALUE;
 
-    private Singleton instance;
-    private TextView customView;
-    private LineChart chart;
+    public Singleton instance;
+    public TextView customView;
+    public LineChart chart;
 
-    private Map<String, Map<String, Double>> histMap;
+    public Map<String, Map<String, Double>> histMap;
 
-    private List<Entry> entryList;
-    private LineDataSet dataSet;
-    private LineData lineData;
+    public List<Entry> entryList;
+    public LineDataSet dataSet;
+    public LineData lineData;
 
-    private boolean wifi = true;
-    private boolean roaming = false;
-    private boolean fill = true;
+    public boolean wifi = true;
+    public boolean roaming = false;
+    public boolean fill = true;
 
-    private int firstIndex;
-    private int secondIndex;
+    public int firstIndex;
+    public int secondIndex;
 
-    private String firstName;
-    private String secondName;
+    public String firstName;
+    public String secondName;
 
-    private boolean invert;
-    private int range = Integer.MAX_VALUE;
+    public boolean invert;
+    public int range = Integer.MAX_VALUE;
 
     // On create
     @Override
@@ -230,7 +229,7 @@ public class ChartActivity extends Activity
             customView.setOnClickListener(v ->
         {
             if (histMap != null)
-                onInvertClick();
+                executeCommand(new InvertChartCommand(this));
         });
 
         // Check singleton instance
@@ -495,43 +494,43 @@ public class ChartActivity extends Activity
 
         // Invert chart
         case R.id.action_invert:
-            return onInvertClick();
+            return executeCommand(new InvertChartCommand(this));
 
         // New chart
         case R.id.action_new_chart:
-            return onNewClick();
+            return executeCommand(new AddCurrencyChartCommand(this));
 
         // Refresh chart
         case R.id.action_refresh:
-            return onRefreshClick(ECB_QUARTER_URL);
+            return executeCommand(new RefreshChartCommand(this, ECB_QUARTER_URL));
 
         // Refresh with historical data
         case R.id.action_hist:
-            return onRefreshClick(ECB_HIST_URL);
+            return executeCommand(new RefreshChartCommand(this, ECB_HIST_URL));
 
         // Week
         case R.id.action_week:
-            return onWeekClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, WEEK));
 
         // Month
         case R.id.action_month:
-            return onMonthClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, MONTH));
 
         // Quarter
         case R.id.action_quarter:
-            return onQuarterClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, QUARTER));
 
         // Year
         case R.id.action_year:
-            return onYearClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, YEAR));
 
         // Years
         case R.id.action_years:
-            return onYearsClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, YEARS));
 
         // Max
         case R.id.action_max:
-            return onMaxClick(item);
+            return executeCommand(new SetChartDurationCommand(this, item, MAX));
 
         default:
             return false;
@@ -540,219 +539,8 @@ public class ChartActivity extends Activity
         return true;
     }
 
-    // on invert click
-    private boolean onInvertClick()
-    {
-        SimpleDateFormat dateParser =
-            new SimpleDateFormat(Main.DATE_FORMAT, Locale.getDefault());
-
-        // Get updating text
-        String updating = getString(R.string.updating);
-
-        // Set flag
-        invert = !invert;
-
-        // Reverse currency indices
-        int index = firstIndex;
-        firstIndex = secondIndex;
-        secondIndex = index;
-
-        // Update names
-        firstName = Main.CURRENCY_NAMES[firstIndex];
-        secondName = Main.CURRENCY_NAMES[secondIndex];
-
-        // Set custom text to updating, since this may take a few secs
-        if (customView != null)
-            customView.setText(updating);
-
-        // Clear the entry list
-        entryList.clear();
-
-        // Iterate through the dates
-        for (String key : histMap.keySet())
-        {
-            float day = 0;
-
-            // Parse the date and turn it into a day number
-            try
-            {
-                Date date = dateParser.parse(key);
-                day = date.getTime() / MSEC_DAY;
-            }
-
-            // Ignore invalid dates
-            catch (Exception e)
-            {
-                continue;
-            }
-
-            // Get the map for each date
-            Map<String, Double> entryMap = histMap.get(key);
-            float value;
-
-            // Get the value for each date
-            try
-            {
-                double first = entryMap.get(firstName);
-                double second = entryMap.get(secondName);
-                value = (float) (first / second);
-            }
-
-            // Ignore missing values
-            catch (Exception e)
-            {
-                continue;
-            }
-
-            // Add the entry to the list
-            entryList.add(0, new Entry(day, value));
-        }
-
-        // Check the chart
-        if (chart != null)
-        {
-            // Add the data to the chart and refresh
-            dataSet.setValues(entryList);
-            lineData.notifyDataChanged();
-            chart.notifyDataSetChanged();
-            chart.invalidate();
-
-            // Get todays date
-            Date today = new Date();
-            // Get the start date
-            long start = (today.getTime() / MSEC_DAY) - range;
-
-            // Reset chart
-            chart.fitScreen();
-            // Set the range
-            chart.setVisibleXRangeMaximum(range);
-            chart.moveViewToX(start);
-        }
-
-        // Restore the custom view to the current currencies
-        String label = secondName + "/" + firstName;
-        if (customView != null)
-            customView.setText(label);
-
-        return true;
-    }
-
-    // On new click
-    private boolean onNewClick()
-    {
-        // Start the choice dialog
-        Intent intent = new Intent(this, ChoiceDialog.class);
-        startActivityForResult(intent, 0);
-
-        return true;
-    }
-
-    // On refresh click
-    @SuppressWarnings("deprecation")
-    private boolean onRefreshClick(String url)
-    {
-        // Check connectivity before update
-        ConnectivityManager manager =
-            (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkInfo info = manager.getActiveNetworkInfo();
-
-        // Check connection
-        if (info == null || !info.isConnected())
-        {
-            showToast(R.string.no_connection);
-            return false;
-        }
-
-        // Check wifi
-        if (wifi && info.getType() != ConnectivityManager.TYPE_WIFI)
-        {
-            showToast(R.string.no_wifi);
-            return false;
-        }
-
-        // Check roaming
-        if (!roaming && info.isRoaming())
-        {
-            showToast(R.string.roaming);
-            return false;
-        }
-
-        // Get updating text
-        String updating = getString(R.string.updating);
-
-        // Set custom text to updating, since this may take a few secs
-        if (customView != null)
-            customView.setText(updating);
-
-        // Schedule the update
-        if (instance != null)
-            instance.startParseTask(url);
-
-        return true;
-    }
-
-    // onWeekClick
-    private boolean onWeekClick(MenuItem item)
-    {
-        range = WEEK;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
-    // onMonthClick
-    private boolean onMonthClick(MenuItem item)
-    {
-        range = MONTH;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
-    // onQuarterClick
-    private boolean onQuarterClick(MenuItem item)
-    {
-        range = QUARTER;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
-    // onYearClick
-    private boolean onYearClick(MenuItem item)
-    {
-        range = YEAR;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
-    // onYearsClick
-    private boolean onYearsClick(MenuItem item)
-    {
-        range = YEARS;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
-    // onMaxClick
-    private boolean onMaxClick(MenuItem item)
-    {
-        range = MAX;
-        item.setChecked(true);
-        updateRange();
-
-        return true;
-    }
-
     // updateRange
-    private void updateRange()
+    public void updateRange()
     {
         // Check the chart
         if (chart != null)
@@ -1037,5 +825,9 @@ public class ChartActivity extends Activity
             Date date = new Date(Math.round(value) * MSEC_DAY);
             return dateFormat.format(date);
         }
+    }
+
+    private boolean executeCommand(ChartCommand command) {
+        return command.execute();
     }
 }
