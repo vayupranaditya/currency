@@ -65,6 +65,7 @@ public class ChoiceDialog extends Activity
         boolean theme = preferences.getBoolean(Main.PREF_DARK, true);
 
         if (!theme)
+
             setTheme(R.style.DialogLightTheme);
 
         setContentView(R.layout.choose);

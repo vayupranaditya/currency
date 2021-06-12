@@ -81,28 +81,28 @@ public class ChartActivity extends Activity
     public static final int YEARS = 1825;
     public static final int MAX = Integer.MAX_VALUE;
 
-    private Singleton instance;
-    private TextView customView;
-    private LineChart chart;
+    public Singleton instance;
+    public TextView customView;
+    public LineChart chart;
 
-    private Map<String, Map<String, Double>> histMap;
+    public Map<String, Map<String, Double>> histMap;
 
-    private List<Entry> entryList;
-    private LineDataSet dataSet;
-    private LineData lineData;
+    public List<Entry> entryList;
+    public LineDataSet dataSet;
+    public LineData lineData;
 
-    private boolean wifi = true;
-    private boolean roaming = false;
-    private boolean fill = true;
+    public boolean wifi = true;
+    public boolean roaming = false;
+    public boolean fill = true;
 
-    private int firstIndex;
-    private int secondIndex;
+    public int firstIndex;
+    public int secondIndex;
 
-    private String firstName;
-    private String secondName;
+    public String firstName;
+    public String secondName;
 
-    private boolean invert;
-    private int range = Integer.MAX_VALUE;
+    public boolean invert;
+    public int range = Integer.MAX_VALUE;
 
     // On create
     @Override
