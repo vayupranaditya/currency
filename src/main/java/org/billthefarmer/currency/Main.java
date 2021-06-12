@@ -25,9 +25,6 @@ package org.billthefarmer.currency;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Dialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -169,55 +166,67 @@ public class Main extends Activity
     public static final String ECB_DAILY_URL =
         "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 
-    protected final static String CHOICE = "choice";
+    public final static String CHOICE = "choice";
 
     public static final int DISPLAY_MODE = 0;
     public static final int SELECT_MODE = 1;
 
-    private int mode = DISPLAY_MODE;
+    public int mode = DISPLAY_MODE;
 
-    private boolean wifi = true;
-    private boolean roaming = false;
-    private boolean select = true;
-    private boolean dark = true;
-    private int digits = 3;
+    public boolean wifi = true;
+    public boolean roaming = false;
+    public boolean select = true;
+    public boolean dark = true;
+    public int digits = 3;
 
-    private int currentIndex = 0;
-    private double currentValue = 1.0;
-    private double convertValue = 1.0;
-    private double extraValue = 1.0;
-    private String date;
+    public int currentIndex = 0;
+    public double currentValue = 1.0;
+    public double convertValue = 1.0;
+    public double extraValue = 1.0;
+    public String date;
 
-    private ImageView flagView;
-    private TextView nameView;
-    private TextView symbolView;
-    private EditText editView;
-    private TextView longNameView;
-    private TextView dateView;
-    private TextView statusView;
+    public ImageView flagView;
+    public TextView nameView;
+    public TextView symbolView;
+    public EditText editView;
+    public TextView longNameView;
+    public TextView dateView;
+    public TextView statusView;
 
-    private Data data;
+    public Data data;
 
-    private List<String> currencyNameList;
+    public List<String> currencyNameList;
 
-    private List<Integer> flagList;
-    private List<String> nameList;
-    private List<String> symbolList;
-    private List<String> valueList;
-    private List<Integer> longNameList;
+    public List<Integer> flagList;
+    public List<String> nameList;
+    public List<String> symbolList;
+    public List<String> valueList;
+    public List<Integer> longNameList;
 
-    private List<Integer> selectList;
-    private Map<String, Double> valueMap;
+    public List<Integer> selectList;
+    public Map<String, Double> valueMap;
 
-    private CurrencyAdapter adapter;
+    public CurrencyAdapter adapter;
 
-    private Resources resources;
+    public Resources resources;
+
+    // State pattern
+    public MainActivityStateInterface state;
+
+    public void changeState() {
+        if (mode == SELECT_MODE) {
+            this.state = new MainSelectState(this);
+        } else {
+            this.state = new MainDisplayState(this);
+        }
+    }
 
     // On create
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        state = new MainSelectState(this);
 
         // Get preferences
         SharedPreferences preferences =
@@ -290,11 +299,13 @@ public class Main extends Activity
             selectList = new ArrayList<>();
 
         // Set mode
-        if (selectList.isEmpty())
+        if (selectList.isEmpty()) {
             mode = Main.DISPLAY_MODE;
-
-        else
+            changeState();
+        } else {
             mode = Main.SELECT_MODE;
+            changeState();
+        }
 
         // Create the adapter
         adapter = new CurrencyAdapter(this, R.layout.item, flagList, nameList,
@@ -691,17 +702,7 @@ public class Main extends Activity
         // is present.
         MenuInflater inflater = getMenuInflater();
 
-        // Check mode
-        switch (mode)
-        {
-        case DISPLAY_MODE:
-            inflater.inflate(R.menu.main, menu);
-            break;
-
-        case SELECT_MODE:
-            inflater.inflate(R.menu.select, menu);
-            break;
-        }
+        this.state.onCreateOptionsMenu(menu);
 
         return true;
     }
@@ -716,280 +717,47 @@ public class Main extends Activity
         {
         // Add
         case R.id.action_add:
-            return onAddClick();
+            return executeCommand(new AddCurrencyCommand(this));
 
         // Refresh
         case R.id.action_refresh:
-            return onRefreshClick();
+            return executeCommand(new RefreshCurrencyCommand(this));
 
         // Update
         case R.id.action_update:
-            return onUpdateClick();
+            return executeCommand(new UpdateExtPriceCommand(this));
 
         // Help
         case R.id.action_help:
-            return onHelpClick();
+            return executeCommand(new StartHelpCommand(this));
 
         // Settings
         case R.id.action_settings:
-            return onSettingsClick();
+            return executeCommand(new StartSettingCommand(this));
 
         // Clear
         case R.id.action_clear:
-            return onClearClick();
+            return executeCommand(new ClearSelectionCommand(this));
 
         // Remove
         case R.id.action_remove:
-            return onRemoveClick();
+            return executeCommand(new RemoveCurrencyCommand(this));
 
         // Chart
         case R.id.action_chart:
-            return onChartClick();
+            return executeCommand(new StartChartCommand(this));
 
         // Copy
         case R.id.action_copy:
-            return onCopyClick();
+            return executeCommand(new CopyCurrencyPriceCommand(this));
         }
 
         return false;
     }
 
-    // On add click
-    private boolean onAddClick()
-    {
-        // Start the choice dialog
-        Intent intent = new Intent(this, ChoiceDialog.class);
-        startActivityForResult(intent, 0);
-
-        return true;
-    }
-
-    // On clear click
-    private boolean onClearClick()
-    {
-        // Clear the list and update the adapter
-        selectList.clear();
-        adapter.notifyDataSetChanged();
-
-        // Restore the menu
-        mode = DISPLAY_MODE;
-        invalidateOptionsMenu();
-        return true;
-    }
-
-    // On copy click
-    private boolean onCopyClick()
-    {
-        ClipboardManager clipboard =
-            (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-
-        NumberFormat numberFormat = NumberFormat.getInstance();
-        numberFormat.setMinimumFractionDigits(digits);
-        numberFormat.setMaximumFractionDigits(digits);
-
-        // Copy value to clip
-        String clip = null;
-        for (int i : selectList)
-        {
-            try
-            {
-                numberFormat.setGroupingUsed(true);
-                Number number = numberFormat.parse(valueList.get(i));
-                Double value = number.doubleValue();
-
-                // Remove grouping from value
-                numberFormat.setGroupingUsed(false);
-                clip = numberFormat.format(value);
-            }
-            catch (Exception e)
-            {
-            }
-        }
-
-        // Copy clip to clipboard
-        clipboard.setPrimaryClip(ClipData.newPlainText("Currency", clip));
-
-        // Clear selection
-        selectList.clear();
-        adapter.notifyDataSetChanged();
-
-        // Restore menu
-        mode = DISPLAY_MODE;
-        invalidateOptionsMenu();
-        return true;
-    }
-
-    // On remove click
-    private boolean onRemoveClick()
-    {
-        List<String> removeList = new ArrayList<>();
-
-        // Create a list of currency names to remove
-        for (int i : selectList)
-            removeList.add(nameList.get(i));
-
-        for (String name : removeList)
-        {
-            // Look up name
-            int i = nameList.indexOf(name);
-
-            // Remove from the lists
-            flagList.remove(i);
-            nameList.remove(i);
-            symbolList.remove(i);
-            valueList.remove(i);
-            longNameList.remove(i);
-        }
-
-        // Clear list and update adapter
-        selectList.clear();
-        adapter.notifyDataSetChanged();
-
-        // Restore menu
-        mode = DISPLAY_MODE;
-        invalidateOptionsMenu();
-
-        return true;
-    }
-
-    // On chart click
-    private boolean onChartClick()
-    {
-        Intent intent = new Intent(this, ChartActivity.class);
-        List<Integer> list = new ArrayList<>();
-
-        // Add the current index
-        list.add(currentIndex);
-
-        // Add the select list to the list
-        for (int index : selectList)
-        {
-            String name = nameList.get(index);
-            list.add(currencyNameList.indexOf(name));
-        }
-
-        // Put the list
-        intent.putIntegerArrayListExtra(CHART_LIST,
-                                        (ArrayList<Integer>) list);
-
-        // Start chart activity
-        startActivity(intent);
-
-        // Clear select list and update adapter
-        selectList.clear();
-        adapter.notifyDataSetChanged();
-
-        // Restore menu
-        mode = DISPLAY_MODE;
-        invalidateOptionsMenu();
-
-        return true;
-    }
-
-    // On refresh click
-    @SuppressWarnings("deprecation")
-    private boolean onRefreshClick()
-    {
-        // Check connectivity before refresh
-        ConnectivityManager manager =
-            (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkInfo info = manager.getActiveNetworkInfo();
-
-        // Check connected
-        if (info == null || !info.isConnected())
-        {
-            if (statusView != null)
-                statusView.setText(R.string.no_connection);
-            return false;
-        }
-
-        // Check wifi
-        if (wifi && info.getType() != ConnectivityManager.TYPE_WIFI)
-        {
-            if (statusView != null)
-                statusView.setText(R.string.no_wifi);
-            return false;
-        }
-
-        // Check roaming
-        if (!roaming && info.isRoaming())
-        {
-            if (statusView != null)
-                statusView.setText(R.string.roaming);
-            return false;
-        }
-
-        // Schedule update
-        if (statusView != null)
-            statusView.setText(R.string.updating);
-
-        // Start the task
-        if (data != null)
-            data.startParseTask(ECB_DAILY_URL);
-
-        return true;
-    }
-
-    // On update click
-    private boolean onUpdateClick()
-    {
-        NumberFormat numberFormat = NumberFormat.getInstance();
-        numberFormat.setMinimumFractionDigits(digits);
-        numberFormat.setMaximumFractionDigits(digits);
-
-        NumberFormat englishFormat = NumberFormat.getInstance(Locale.ENGLISH);
-
-        String extra = numberFormat.format(extraValue);
-
-        // Open dialog
-        updateDialog(R.string.update_extra, extra, R.string.decimal,
-                    (dialog, id) ->
-        {
-            switch (id)
-            {
-            case DialogInterface.BUTTON_POSITIVE:
-                EditText text =
-                    ((Dialog) dialog).findViewById(R.id.value);
-                String value = text.getText().toString();
-
-                // Ignore empty string
-                if (value.isEmpty())
-                    return;
-
-                // Try default locale
-                try
-                {
-                    Number number = numberFormat.parse(value);
-                    extraValue = number.doubleValue();
-                }
-                catch (Exception e)
-                {
-                    // Try English locale
-                    try
-                    {
-                        Number number = englishFormat.parse(value);
-                        extraValue = number.doubleValue();
-                    }
-                    catch (Exception ex)
-                    {
-                        extraValue = 1.0;
-                    }
-                }
-
-                // Update display
-                valueMap.put("EXT", extraValue);
-                convertValue = valueMap.get(CURRENCY_NAMES[currentIndex]);
-                Editable editable = editView.getEditableText();
-                afterTextChanged(editable);
-            }
-        });
-
-        return true;
-    }
-
     // updateDialog
-    private void updateDialog(int title, String value, int hint,
-                              DialogInterface.OnClickListener listener)
+    public void updateDialog(int title, String value, int hint,
+                             DialogInterface.OnClickListener listener)
     {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(title);
@@ -1011,26 +779,6 @@ public class Main extends Activity
         AlertDialog dialog = builder.create();
         dialog.setView(text, 40, 0, 40, 0);
         dialog.show();
-    }
-
-    // On help click
-    private boolean onHelpClick()
-    {
-        // Start help activity
-        Intent intent = new Intent(this, HelpActivity.class);
-        startActivity(intent);
-
-        return true;
-    }
-
-    // On settings click
-    private boolean onSettingsClick()
-    {
-        // Start settings activity
-        Intent intent = new Intent(this, SettingsActivity.class);
-        startActivity(intent);
-
-        return true;
     }
 
     // On click
@@ -1207,108 +955,7 @@ public class Main extends Activity
         numberFormat.setMinimumFractionDigits(digits);
         numberFormat.setMaximumFractionDigits(digits);
 
-        // Check mode
-        switch (mode)
-        {
-        // Display mode - replace the current currency
-        case DISPLAY_MODE:
-            // Save the current values
-            oldIndex = currentIndex;
-            oldValue = currentValue;
-
-            // Set the current currency from the list
-            currentIndex = currencyNameList.indexOf(nameList.get(position));
-
-            currentValue = (oldValue / convertValue) *
-                           valueMap.get(CURRENCY_NAMES[currentIndex]);
-
-            convertValue = valueMap.get(CURRENCY_NAMES[currentIndex]);
-
-            numberFormat.setGroupingUsed(false);
-            value = numberFormat.format(currentValue);
-
-            if (editView != null)
-            {
-                editView.setText(value);
-
-                // Forces select all
-                editView.clearFocus();
-                editView.requestFocus();
-
-                // Do it only once
-                select = false;
-            }
-
-            if (flagView != null)
-                flagView.setImageResource(CURRENCY_FLAGS[currentIndex]);
-            if (nameView != null)
-                nameView.setText(CURRENCY_NAMES[currentIndex]);
-            if (symbolView != null)
-                symbolView.setText(CURRENCY_SYMBOLS[currentIndex]);
-            if (longNameView != null)
-                longNameView.setText(CURRENCY_LONGNAMES[currentIndex]);
-
-            // Remove the selected currency from the lists
-            flagList.remove(position);
-            nameList.remove(position);
-            symbolList.remove(position);
-            valueList.remove(position);
-            longNameList.remove(position);
-
-            // Add the old current currency to the start of the list
-            flagList.add(0, CURRENCY_FLAGS[oldIndex]);
-            nameList.add(0, CURRENCY_NAMES[oldIndex]);
-            symbolList.add(0, CURRENCY_SYMBOLS[oldIndex]);
-            longNameList.add(0, CURRENCY_LONGNAMES[oldIndex]);
-
-            numberFormat.setGroupingUsed(true);
-            value = numberFormat.format(oldValue);
-            valueList.add(0, value);
-
-            // Get preferences
-            SharedPreferences preferences =
-                PreferenceManager.getDefaultSharedPreferences(this);
-
-            // Get editor
-            SharedPreferences.Editor editor = preferences.edit();
-
-            // Get entries
-            JSONArray nameArray = new JSONArray(nameList);
-            JSONArray valueArray = new JSONArray(valueList);
-
-            // Update preferences
-            editor.putString(PREF_NAMES, nameArray.toString());
-            editor.putString(PREF_VALUES, valueArray.toString());
-            editor.putInt(PREF_INDEX, currentIndex);
-            numberFormat.setGroupingUsed(false);
-            value = numberFormat.format(currentValue);
-            editor.putString(PREF_VALUE, value);
-            editor.apply();
-
-            // Notify the adapter
-            adapter.notifyDataSetChanged();
-            break;
-
-        // Select mode - toggle selection
-        case SELECT_MODE:
-            // Select mode - add or remove from list
-            if (selectList.contains(position))
-                selectList.remove(selectList.indexOf(position));
-
-            else
-                selectList.add(position);
-
-            // Reset mode if list empty
-            if (selectList.isEmpty())
-            {
-                mode = DISPLAY_MODE;
-                invalidateOptionsMenu();
-            }
-
-            // Notify the adapter
-            adapter.notifyDataSetChanged();
-            break;
-        }
+        this.state.onItemClick(position);
     }
 
     // On item long click
@@ -1318,6 +965,7 @@ public class Main extends Activity
     {
         // Switch to select mode, update menu
         mode = SELECT_MODE;
+        changeState();
         invalidateOptionsMenu();
 
         // Clear the list and add the new selection
@@ -1483,5 +1131,9 @@ public class Main extends Activity
         // Notify failed
         else if (statusView != null)
             statusView.setText(R.string.failed);
+    }
+
+    private boolean executeCommand(MainCommand command) {
+        return command.execute();
     }
 }

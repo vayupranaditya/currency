@@ -1,6 +1,6 @@
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
         google()
     }
 
@@ -9,9 +9,13 @@ buildscript {
     }
 }
 
+plugins {
+    id "org.sonarqube" version "3.0"
+}
+
 allprojects {
     repositories {
-        jcenter()
+        mavenCentral()
         google()
         maven { url "https://jitpack.io" }
     }
@@ -25,14 +29,13 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 28
-    buildToolsVersion '29.0.3'
 
     defaultConfig {
         applicationId "org.billthefarmer.currency"
         minSdkVersion 14
         targetSdkVersion 28
-        versionName "1.35"
-        versionCode 135
+        versionName "1.36"
+        versionCode 136
 
         buildConfigField "long", "BUILT", System.currentTimeMillis() + "L"
     }
@@ -44,16 +47,8 @@ android {
 
     lintOptions {
         disable 'IconDensities', 'IconDuplicates', 'OldTargetApi',
-		'NonConstantResourceId'
+	    'NonConstantResourceId', 'ExpiredTargetSdkVersion'
         // abortOnError false
-    }
-
-    repositories {
-        jcenter()
-        google()
-        maven {
-	    url 'https://jitpack.io'
-        }
     }
 
     dependencies {
