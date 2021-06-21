@@ -43,20 +43,23 @@ public class ChoiceDialog extends Activity
     AdapterView.OnItemLongClickListener
 {
 
-    private Button clear;
-    private Button select;
+    public Button clear;
+    public Button select;
 
-    private List<Integer> selectList;
+    public List<Integer> selectList;
 
-    private ChoiceAdapter adapter;
+    public ChoiceAdapter adapter;
 
-    private int mode = Main.DISPLAY_MODE;
+    public int mode = Main.DISPLAY_MODE;
+
+    public ChoiceDialogState state;
 
     // On create
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        state = new ChoiceDialogDisplayState(this);
 
         // Get preferences
         SharedPreferences preferences =
@@ -130,6 +133,7 @@ public class ChoiceDialog extends Activity
             if (select != null)
                 select.setEnabled(false);
             mode = Main.DISPLAY_MODE;
+            this.changeState();
         }
 
         // Enable buttons if selection
@@ -140,6 +144,7 @@ public class ChoiceDialog extends Activity
             if (select != null)
                 select.setEnabled(true);
             mode = Main.SELECT_MODE;
+            this.changeState();
         }
 
         // Notify adapter
@@ -179,6 +184,7 @@ public class ChoiceDialog extends Activity
             if (select != null)
                 select.setEnabled(false);
             mode = Main.DISPLAY_MODE;
+            this.changeState();
 
             // Start a new selection
             selectList.clear();
@@ -202,40 +208,7 @@ public class ChoiceDialog extends Activity
     public void onItemClick(AdapterView<?> parent, View view,
                             int position, long id)
     {
-        // Check mode
-        switch (mode)
-        {
-        // Normal
-        case Main.DISPLAY_MODE:
-            selectList.add(position);
-            // Return new currency in intent
-            Intent intent = new Intent();
-            intent.putIntegerArrayListExtra(Main.CHOICE,
-                                            (ArrayList<Integer>) selectList);
-            setResult(RESULT_OK, intent);
-            finish();
-            break;
-
-        // Select
-        case Main.SELECT_MODE:
-            if (selectList.contains(position))
-                selectList.remove(selectList.indexOf(position));
-
-            else
-                selectList.add(position);
-
-            if (selectList.isEmpty())
-            {
-                if (clear != null)
-                    clear.setEnabled(false);
-                if (select != null)
-                    select.setEnabled(false);
-                mode = Main.DISPLAY_MODE;
-            }
-
-            adapter.notifyDataSetChanged();
-            break;
-        }
+        this.state.onItemClick(position);
     }
 
     // On item long click
@@ -248,11 +221,20 @@ public class ChoiceDialog extends Activity
         if (select != null)
             select.setEnabled(true);
         mode = Main.SELECT_MODE;
+        this.changeState();
 
         // Start a new selection
         selectList.clear();
         selectList.add(position);
         adapter.notifyDataSetChanged();
         return true;
+    }
+
+    public void changeState() {
+        if (mode == Main.SELECT_MODE) {
+            this.state = new ChoiceDialogSelectState(this);
+        } else {
+            this.state = new ChoiceDialogDisplayState(this);
+        }
     }
 }
